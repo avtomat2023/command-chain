@@ -22,27 +22,32 @@
 ;; Contants and Variables for Config
 
 (defconst command-chain-config-buffer-name "*Command Chain Config*")
-(defvar command-chain-player-count nil "Number of players.")
 (defvar command-chain-players nil
   "Hash tables cotaining players' status.
 
 Keys (must be symbols) and values are following:
   name : player's name (string)
+  life : life point (integer)
 
-This variables shold be accessed not directly but via functions
-`command-chain-player-set' and `command-chain-player-get'
-for future implementation change.")
+This variable shold be accessed not directly but via functions
+`command-chain-initialize-players', `command-chain-player-set',
+`command-chain-player-get' and `command-chain-delete-player'
+for future implementation changes.")
 
 ;; Utilities
 
-(defun command-chain-player-set (n key value)
+(defun command-chain-player-count ()
+  "Number of players."
+  (length command-chain-players))
+
+(defun command-chain-player-set (player-n key value)
   "Set KEY of N th player in `command-chain-players' to VALUE."
-  (let ((player (aref command-chain-players n)))
+  (let ((player (aref command-chain-players player-n)))
     (puthash key value player)))
 
-(defun command-chain-player-get (n key)
+(defun command-chain-player-get (player-n key)
   "Get a value associated with KEY for N th player in `command-chain-players'."
-  (let ((player (aref command-chain-players n)))
+  (let ((player (aref command-chain-players player-n)))
     (gethash key player)))
 
 (defun command-chain--put-property (prop value s)
@@ -58,17 +63,41 @@ VARS must not be quoted."
                        vars)))
     (cons 'progn sexps)))
 
+(defun command-chain--vector-remove-nth (vector n)
+  "Return a new vector made by removing N th element of VECTOR."
+  (let* ((len (length vector))
+         (new-vec (make-vector (1- len) nil)))
+    (dotimes (i n)
+      (aset new-vec i (aref vector i)))
+    (cl-loop for i from (1+ n) below len do
+             (aset new-vec (1- i) (aref vector i)))
+    new-vec))
+
+(defmacro command-chain--vector-delete-nth (vector n)
+  "Delete N th element of VECTOR destructively."
+  `(setq ,vector (command-chain--vector-remove-nth ,vector ,n)))
+
+(defun command-chain-delete-player (player-n)
+  "Delete PLAYER-N th player."
+  (command-chain--vector-delete-nth command-chain-players player-n))
+
 ;; Definitions for config buffer
 
-(defun command-chain-config-initialize-variables ()
-  "Set configurable variables' initial values."
-  (setq command-chain-players (make-vector command-chain-player-count nil))
-  (dotimes (i command-chain-player-count)
+(defun command-chain-initialize-players (player-count)
+  "Set `command-chain-players' to default PLAYER-COUNT players and
+`command-chain-player-count' to PLAYER-COUNT."
+  (setq command-chain-players (make-vector player-count nil))
+  (dotimes (i player-count)
     (let ((player (aset command-chain-players i (make-hash-table :test 'eq))))
-      (puthash 'name (concat "Player " (number-to-string (1+ i))) player))))
+      (puthash 'name (concat "Player " (number-to-string (1+ i))) player)
+      (puthash 'life 1 player))))
 
 (defun command-chain-config-delete-player (player-n)
-  (message "Delete %d" player-n))
+  (when (<= (command-chain-player-count) 2)
+    (error "2 or more players needed."))
+  (command-chain--vector-delete-nth command-chain-players player-n)
+  (kill-buffer)
+  (command-chain-config))
 
 (defun command-chain-config-create-player-widgets (player-n)
   "Create widgets to configure PLAYER-N th player's information."
@@ -96,7 +125,7 @@ VARS must not be quoted."
   (switch-to-buffer command-chain-config-buffer-name)
   (kill-all-local-variables)
   (widget-insert "*** Game Config ***\n\n")
-  (dotimes (i command-chain-player-count)
+  (dotimes (i (command-chain-player-count))
     (command-chain-config-create-player-widgets i))
   (widget-create 'push-button
                  :notify (lambda (&rest ignore)
@@ -108,7 +137,7 @@ VARS must not be quoted."
 
 ;; Game Variables
 
-(defvar command-chain-current-player 0
+(defvar command-chain-current-player-n 0
   "Number representing whose turn the game is.")
 (defvar command-chain-point-after-prompt 0
   "Point after prompt. Buffer content before this point must not be changed.")
@@ -137,13 +166,13 @@ Example:
     (apply 'insert args)))
 
 (defun command-chain-pass-turn-to-next-player ()
-  "Set `command-chain-current-player' to the next player."
-  (setq command-chain-current-player
-        (% (1+ command-chain-current-player) command-chain-player-count)))
+  "Set `command-chain-current-player-n' to the next player."
+  (setq command-chain-current-player-n
+        (% (1+ command-chain-current-player-n) (command-chain-player-count))))
 
 (defun command-chain-current-player-get (key)
-  "Shorthand of `command-chain-player-get' to `command-chain-current-player'."
-  (command-chain-player-get command-chain-current-player key))
+  "Shorthand of `command-chain-player-get' to `command-chain-current-player-n'."
+  (command-chain-player-get command-chain-current-player-n key))
 
 (defun command-chain-first-char (s)
   "Return the last char of S downcased. S must not be null string."
@@ -179,7 +208,8 @@ Example:
   "Print a prompt."
   (command-chain-insert "Next character: " command-chain-char ?\n)
   (let* ((name (command-chain-current-player-get 'name))
-         (prompt (concat name "> ")))
+         (prompt (concat (number-to-string (1+ command-chain-current-player-n))
+                         " - " name "> ")))
     (command-chain--put-property 'face 'command-chain-prompt-face prompt)
     (command-chain-insert prompt))
   (setq command-chain-point-after-prompt (point-max)))
@@ -221,15 +251,14 @@ Example:
   (interactive)
   (switch-to-buffer (generate-new-buffer "*Command Chain*"))
   (command-chain--make-local-variables
-    command-chain-player-count
     command-chain-players
-    command-chain-current-player
+    command-chain-current-player-n
     command-chain-point-after-prompt
     command-chain-editing)
   (local-set-key (kbd "RET") 'command-chain-commit-input)
   (command-chain-add-change-hooks)
 
-  (setq command-chain-current-player 0
+  (setq command-chain-current-player-n 0
         command-chain-point-after-prompt 0
         command-chain-char (+ ?a (random (- ?z ?a))))
   (command-chain-edit
@@ -247,6 +276,5 @@ Example:
   (when (< player-count 2)
     (error "Number of players must be 2 or more."))
   (unless (get-buffer command-chain-config-buffer-name)
-    (setq command-chain-player-count player-count)
-    (command-chain-config-initialize-variables))
+    (command-chain-initialize-players player-count))
   (command-chain-config))
