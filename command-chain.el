@@ -107,6 +107,9 @@ VARS must not be quoted."
 (defvar command-chain-editing nil
   "Boolean indicating if buffer will be changed by private functions.
 If non-nil, hooks for player's buffer editting get disabled.")
+(defvar command-chain-char ?a
+  "Character the next command should begins with.
+The value is lowercase, but uppercase character is also accepted.")
 
 ;; Game Utilities
 
@@ -134,6 +137,14 @@ Example:
   "Shorthand of `command-chain-player-get' to `command-chain-current-player'."
   (command-chain-player-get command-chain-current-player key))
 
+(defun command-chain-first-char (s)
+  "Return the last char of S downcased. S must not be null string."
+  (downcase (elt s 0)))
+
+(defun command-chain-last-char (s)
+  "Return the last char of S downcased. S must not be null string."
+  (downcase (elt s (1- (length s)))))
+
 ;; game Functions
 
 (defun command-chain-add-change-hooks ()
@@ -158,17 +169,29 @@ Example:
 
 (defun command-chain-prompt ()
   "Print a prompt."
+  (command-chain-insert "Next Character: " command-chain-char ?\n)
   (let* ((name (command-chain-current-player-get 'name))
          (prompt (concat name "> ")))
     (command-chain--put-property 'face 'command-chain-prompt-face prompt)
     (command-chain-insert prompt))
   (setq command-chain-point-after-prompt (point-max)))
 
+(defun command-chain-player-dead ()
+  "Print dead message."
+  (command-chain-insert
+   (command-chain-current-player-get 'name) " is DEAD.\n"))
+
 (defun command-chain-process-input (input)
-  (let* ((content (s-trim input))
-         (ok (commandp (intern content))))
-    (command-chain-insert
-     content ": " (if ok "" "NOT ") "an interactive function\n")))
+  (let ((command (s-trim input)))
+    (cond ((eq (length command) 0)
+           (command-chain-player-dead))
+          ((not (eq (command-chain-first-char command) command-chain-char))
+           (command-chain-player-dead))
+          ((not (commandp (intern command)))
+           (command-chain-insert command " is not an interactive function.\n")
+           (command-chain-player-dead))
+          (t
+           (setq command-chain-char (command-chain-last-char command))))))
 
 (defun command-chain-commit-input ()
   "Commit player's input and prompt next input."
@@ -197,8 +220,14 @@ Example:
     command-chain-editing)
   (local-set-key (kbd "RET") 'command-chain-commit-input)
   (command-chain-add-change-hooks)
+
   (setq command-chain-current-player 0
-        command-chain-point-after-prompt 0)
+        command-chain-point-after-prompt 0
+        command-chain-char (+ ?a (random (- ?z ?a))))
+  (command-chain-edit
+    (animate-string "GAME START." 0 0)
+    (sit-for 0.3)
+    (insert ?\n))
   (command-chain-prompt))
 
 (defun command-chain (player-count)
