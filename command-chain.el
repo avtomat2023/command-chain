@@ -6,6 +6,19 @@
 (eval-when-compile
   (require 'cl))
 
+;; Faces
+
+;; FIXME: change font according to player
+(defface command-chain-prompt-face
+  '((t :foreground "deep sky blue"))
+  "Prompt's face."
+  :group 'command-chain)
+
+(defface command-chain-commited-input-face
+  '((t :weight bold))
+  "Commited input's face."
+  :group 'command-chain)
+
 ;; Configurable Variables
 
 (defvar command-chain-player-count nil "Number of players.")
@@ -143,11 +156,6 @@ Example:
   (unless command-chain-editing
     (put-text-property from to 'face 'default)))
 
-;; FIXME: change font according to player
-(defface command-chain-prompt-face
-  '((t :foreground "deep sky blue"))
-  "Prompt's face.")
-
 (defun command-chain-prompt ()
   "Print a prompt."
   (let* ((name (command-chain-current-player-get 'name))
@@ -169,6 +177,9 @@ Example:
   (command-chain-insert "\n")
   (let ((input (buffer-substring
                 command-chain-point-after-prompt (point-max))))
+    (command-chain-edit
+      (put-text-property command-chain-point-after-prompt (point-max)
+                         'face 'command-chain-commited-input-face))
     (command-chain-process-input input)
     (command-chain-pass-turn-to-next-player)
     (command-chain-prompt)))
