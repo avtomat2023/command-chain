@@ -2,9 +2,8 @@
 
 (require 'widget)
 
-;; Is this needed?
 (eval-when-compile
-  (require 'wid-edit))
+  (require 'cl))
 
 ;; Configurable Variables
 
@@ -50,9 +49,10 @@ for future implementation change.")
   (widget-create 'editable-field
                  :size 12
                  :format (concat "    Name: %v\n")
-                 :notify (lambda (widget &rest ignore)
-                           (command-chain-player-set
-                            player-n 'name (widget-value widget)))
+                 :notify (lexical-let ((n player-n))
+                           (lambda (widget &rest ignore)
+                             (command-chain-player-set
+                              n 'name (widget-value widget))))
                  (command-chain-player-get player-n 'name))
   (widget-insert "\n"))
 
