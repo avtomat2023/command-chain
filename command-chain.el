@@ -19,8 +19,9 @@
   "Commited input's face."
   :group 'command-chain)
 
-;; Configurable Variables
+;; Contants and Variables for Config
 
+(defconst command-chain-config-buffer-name "*Command Chain Config*")
 (defvar command-chain-player-count nil "Number of players.")
 (defvar command-chain-players nil
   "Hash tables cotaining players' status.
@@ -66,12 +67,21 @@ VARS must not be quoted."
     (let ((player (aset command-chain-players i (make-hash-table :test 'eq))))
       (puthash 'name (concat "Player " (number-to-string (1+ i))) player))))
 
+(defun command-chain-config-delete-player (player-n)
+  (message "Delete %d" player-n))
+
 (defun command-chain-config-create-player-widgets (player-n)
   "Create widgets to configure PLAYER-N th player's information."
+  (widget-create 'push-button
+                 :notify (lexical-let ((n player-n))
+                           (lambda (&rest ignore)
+                             (command-chain-config-delete-player n)))
+                 "Delete Player")
+  (widget-insert "\n")
   (widget-insert (concat "Player " (number-to-string (1+ player-n)) ":\n"))
   (widget-create 'editable-field
                  :size 12
-                 :format (concat "    Name: %v\n")
+                 :format (concat "    Name %v\n")
                  :notify (lexical-let ((n player-n))
                            (lambda (widget &rest ignore)
                              (command-chain-player-set
@@ -83,9 +93,7 @@ VARS must not be quoted."
 (defun command-chain-config ()
   "Create config buffer."
   (interactive)
-  (switch-to-buffer "*Command Chain Config*")
-  (command-chain-config-initialize-variables)
-
+  (switch-to-buffer command-chain-config-buffer-name)
   (kill-all-local-variables)
   (widget-insert "*** Game Config ***\n\n")
   (dotimes (i command-chain-player-count)
@@ -169,7 +177,7 @@ Example:
 
 (defun command-chain-prompt ()
   "Print a prompt."
-  (command-chain-insert "Next Character: " command-chain-char ?\n)
+  (command-chain-insert "Next character: " command-chain-char ?\n)
   (let* ((name (command-chain-current-player-get 'name))
          (prompt (concat name "> ")))
     (command-chain--put-property 'face 'command-chain-prompt-face prompt)
@@ -232,11 +240,13 @@ Example:
 
 (defun command-chain (player-count)
   "Play command chain game, that is, word chain by Emacs commands."
-  ;; FIXME: Number of players must be specified in cofig buffer
-  ;;        because there is no chance to open multiple config buffers.
-  (interactive "nHow many players: ")
-  (when (< player-count 1)
-    (error "Number of players must be 1 or more."))
-  ;; FIXME
-  (setq command-chain-player-count 2)
+  (interactive "sHow many players (default 2): ")
+  (when (stringp player-count)
+    (setq player-count
+          (if (string= player-count "") 2 (string-to-number player-count))))
+  (when (< player-count 2)
+    (error "Number of players must be 2 or more."))
+  (unless (get-buffer command-chain-config-buffer-name)
+    (setq command-chain-player-count player-count)
+    (command-chain-config-initialize-variables))
   (command-chain-config))
