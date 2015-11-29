@@ -173,7 +173,7 @@ Example:
 (defun command-chain-commit-input ()
   "Commit player's input and prompt next input."
   (interactive)
-  (end-of-buffer)
+  (goto-char (point-max))
   (command-chain-insert "\n")
   (let ((input (buffer-substring
                 command-chain-point-after-prompt (point-max))))
