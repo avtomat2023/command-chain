@@ -35,6 +35,15 @@ for future implementation change.")
   "Put text propery to whole the S."
   (put-text-property 0 (length s) prop value s))
 
+(defmacro command-chain--make-local-variables (&rest vars)
+  "Shorthand of `make-local-variable' for multiple variables.
+VARS must not be quoted."
+  (declare (indent 0))
+  (let ((sexps (mapcar (lambda (var)
+                         `(make-local-variable (quote ,var)))
+                       vars)))
+    (cons 'progn sexps)))
+
 ;; Definitions for config buffer
 
 (defun command-chain-config-initialize-variables ()
@@ -61,10 +70,10 @@ for future implementation change.")
 (defun command-chain-config ()
   "Create config buffer."
   (interactive)
-  (switch-to-buffer (generate-new-buffer "*Command Chain Config*"))
-  (kill-all-local-variables)
+  (switch-to-buffer "*Command Chain Config*")
   (command-chain-config-initialize-variables)
 
+  (kill-all-local-variables)
   (widget-insert "*** Game Config ***\n\n")
   (dotimes (i command-chain-player-count)
     (command-chain-config-create-player-widgets i))
@@ -169,6 +178,12 @@ Example:
   "Create game buffer and start game."
   (interactive)
   (switch-to-buffer (generate-new-buffer "*Command Chain*"))
+  (command-chain--make-local-variables
+    command-chain-player-count
+    command-chain-players
+    command-chain-current-player
+    command-chain-point-after-prompt
+    command-chain-editing)
   (local-set-key (kbd "RET") 'command-chain-commit-input)
   (command-chain-add-change-hooks)
   (setq command-chain-current-player 0
@@ -177,6 +192,8 @@ Example:
 
 (defun command-chain (player-count)
   "Play command chain game, that is, word chain by Emacs commands."
+  ;; FIXME: Number of players must be specified in cofig buffer
+  ;;        because there is no chance to open multiple config buffers.
   (interactive "nHow many players: ")
   (when (< player-count 1)
     (error "Number of players must be 1 or more."))
