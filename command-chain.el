@@ -1,6 +1,7 @@
 ;;; Word Chain game by emacs command names.
 
 (require 'widget)
+(require 's)
 
 (eval-when-compile
   (require 'cl))
@@ -31,7 +32,7 @@ for future implementation change.")
     (gethash key player)))
 
 (defun command-chain--put-property (prop value s)
-  ;; Put text propery to whole the S.
+  "Put text propery to whole the S."
   (put-text-property 0 (length s) prop value s))
 
 ;; Definitions for config buffer
@@ -39,12 +40,12 @@ for future implementation change.")
 (defun command-chain-config-initialize-variables ()
   "Set configurable variables' initial values."
   (setq command-chain-players (make-vector command-chain-player-count nil))
-  (dotimes (n command-chain-player-count)
-    (let ((player (aset command-chain-players n (make-hash-table :test 'eq))))
-      (puthash 'name (concat "Player " (number-to-string (1+ n))) player))))
+  (dotimes (i command-chain-player-count)
+    (let ((player (aset command-chain-players i (make-hash-table :test 'eq))))
+      (puthash 'name (concat "Player " (number-to-string (1+ i))) player))))
 
 (defun command-chain-config-create-player-widgets (player-n)
-  "Create widgets to configure PLAYER-N th players's information."
+  "Create widgets to configure PLAYER-N th player's information."
   (widget-insert (concat "Player " (number-to-string (1+ player-n)) ":\n"))
   (widget-create 'editable-field
                  :size 12
@@ -170,7 +171,8 @@ Example:
   (switch-to-buffer (generate-new-buffer "*Command Chain*"))
   (local-set-key (kbd "RET") 'command-chain-commit-input)
   (command-chain-add-change-hooks)
-  (setq command-chain-current-player 0)
+  (setq command-chain-current-player 0
+        command-chain-point-after-prompt 0)
   (command-chain-prompt))
 
 (defun command-chain (player-count)
