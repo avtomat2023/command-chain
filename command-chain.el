@@ -1,7 +1,6 @@
 ;;; Word Chain game by emacs command names.
 
 (require 'widget)
-(require 's)
 
 (eval-when-compile
   (require 'cl))
@@ -83,6 +82,14 @@ VARS must not be quoted."
 
 (defun command-chain--number-vector (from &optional to inc)
   (vconcat (number-sequence from to inc)))
+
+(defun command-chain--s-trim (s)
+  "Remove whitespace at the beginning and end of S."
+  (when (string-match "\\`[ \t\n\r]+" s)
+    (setq s (replace-match "" t t s)))
+  (when (string-match "[ \t\n\r]+\\'" s)
+    (setq s (replace-match "" t t s)))
+  s)
 
 ;; Definitions for config buffer
 
@@ -244,7 +251,7 @@ Example:
       (cl-decf command-chain-current-player-index))))
 
 (defun command-chain-process-input (input)
-  (let ((command (s-trim input)))
+  (let ((command (command-chain--s-trim input)))
     (cond ((or (eq (length command) 0)
                (not (eq (command-chain-first-char command) command-chain-char)))
            (command-chain-insert "You are a rule breaker.\n")
