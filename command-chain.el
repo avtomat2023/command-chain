@@ -301,7 +301,8 @@ Ohterwise, do nothing and return nil."
     command-chain-player-ns
     command-chain-current-player-index
     command-chain-point-after-prompt
-    command-chain-editing)
+    command-chain-editing
+    command-chain-char)
   (local-set-key (kbd "RET") 'command-chain-commit-input)
   (command-chain-add-change-hooks)
 
