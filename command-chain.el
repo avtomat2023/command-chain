@@ -329,3 +329,5 @@ Ohterwise, do nothing and return nil."
   (unless (get-buffer command-chain-config-buffer-name)
     (command-chain-initialize-players player-count))
   (command-chain-config))
+
+(provide 'command-chain)
