@@ -240,8 +240,9 @@ Example:
   "Decrease current player's life by DAMAGE. Process player's death if life <= 0."
   (let ((life (command-chain-current-player-get 'life))
         (name (command-chain-current-player-get 'name))
-        (suffix (if (> damage 1) " points.\n" " point.\n")))
-    (command-chain-insert name " wounded by " (number-to-string damage) suffix)
+        (s? (if (> damage 1) "s" "")))
+    (command-chain-insert name " takes " (number-to-string damage)
+                          " point" s? " of damage.\n")
     (cl-decf life damage)
     (command-chain-current-player-set 'life life)
     (when (<= life 0)
@@ -319,7 +320,7 @@ Ohterwise, do nothing and return nil."
 
 (defun command-chain (player-count)
   "Play command chain game, that is, word chain by Emacs commands."
-  (interactive "sHow many players (default 2): ")
+  (interactive "sHow many players? (default 2): ")
   (when (stringp player-count)
     (setq player-count
           (if (string= player-count "") 2 (string-to-number player-count))))
