@@ -4,7 +4,7 @@ Word chain game by emacs command names.
 
 Emacsのコマンド名でしりとり
 
-![Screenshot](screenshot.png)
+![Screenshot](screenshot.jpg)
 
 ## How to Play
 
