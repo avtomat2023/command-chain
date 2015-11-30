@@ -81,6 +81,9 @@ VARS must not be quoted."
   "Delete PLAYER-N th player."
   (command-chain--vector-delete-nth command-chain-players player-n))
 
+(defun command-chain--number-vector (from &optional to inc)
+  (vconcat (number-sequence from to inc)))
+
 ;; Definitions for config buffer
 
 (defun command-chain-initialize-players (player-count)
@@ -90,7 +93,7 @@ VARS must not be quoted."
   (dotimes (i player-count)
     (let ((player (aset command-chain-players i (make-hash-table :test 'eq))))
       (puthash 'name (concat "Player " (number-to-string (1+ i))) player)
-      (puthash 'life 1 player))))
+      (puthash 'life 2 player))))
 
 (defun command-chain-config-delete-player (player-n)
   (when (<= (command-chain-player-count) 2)
@@ -121,7 +124,6 @@ VARS must not be quoted."
 ;;; c.f. Info widget
 (defun command-chain-config ()
   "Create config buffer."
-  (interactive)
   (switch-to-buffer command-chain-config-buffer-name)
   (kill-all-local-variables)
   (widget-insert "*** Game Config ***\n\n")
@@ -137,8 +139,10 @@ VARS must not be quoted."
 
 ;; Game Variables
 
-(defvar command-chain-current-player-n 0
-  "Number representing whose turn the game is.")
+(defvar command-chain-player-ns nil "Numbers of living players.")
+(defvar command-chain-current-player-index 0
+  "Number representing whose turn the game is. This value is associated to
+`command-chain-player-ns', not `command-chain-players'.")
 (defvar command-chain-point-after-prompt 0
   "Point after prompt. Buffer content before this point must not be changed.")
 (defvar command-chain-editing nil
@@ -166,13 +170,21 @@ Example:
     (apply 'insert args)))
 
 (defun command-chain-pass-turn-to-next-player ()
-  "Set `command-chain-current-player-n' to the next player."
-  (setq command-chain-current-player-n
-        (% (1+ command-chain-current-player-n) (command-chain-player-count))))
+  "Set `command-chain-current-player-index' to the next player."
+  (setq command-chain-current-player-index
+        (% (1+ command-chain-current-player-index)
+           (length command-chain-player-ns))))
 
 (defun command-chain-current-player-get (key)
-  "Shorthand of `command-chain-player-get' to `command-chain-current-player-n'."
-  (command-chain-player-get command-chain-current-player-n key))
+  "Shorthand of `command-chain-player-get' to the current player."
+  (command-chain-player-get
+   (aref command-chain-player-ns command-chain-current-player-index) key))
+
+(defun command-chain-current-player-set (key value)
+  "Shorthand of `command-chain-player-set' to the current player."
+  (command-chain-player-set
+   (aref command-chain-player-ns command-chain-current-player-index)
+   key value))
 
 (defun command-chain-first-char (s)
   "Return the last char of S downcased. S must not be null string."
@@ -208,28 +220,55 @@ Example:
   "Print a prompt."
   (command-chain-insert "Next character: " command-chain-char ?\n)
   (let* ((name (command-chain-current-player-get 'name))
-         (prompt (concat (number-to-string (1+ command-chain-current-player-n))
-                         " - " name "> ")))
+         (n (1+ (aref command-chain-player-ns
+                      command-chain-current-player-index)))
+         (life (command-chain-current-player-get 'life))
+         (prompt (concat (number-to-string n) " - " name
+                         " (life: " (number-to-string life) ")> ")))
     (command-chain--put-property 'face 'command-chain-prompt-face prompt)
     (command-chain-insert prompt))
   (setq command-chain-point-after-prompt (point-max)))
 
-(defun command-chain-player-dead ()
-  "Print dead message."
-  (command-chain-insert
-   (command-chain-current-player-get 'name) " is DEAD.\n"))
+(defun command-chain-damage-current-player (damage)
+  "Decrease current player's life by DAMAGE. Process player's death if life <= 0."
+  (let ((life (command-chain-current-player-get 'life))
+        (name (command-chain-current-player-get 'name))
+        (suffix (if (> damage 1) " points.\n" " point.\n")))
+    (command-chain-insert name " wounded by " (number-to-string damage) suffix)
+    (cl-decf life damage)
+    (command-chain-current-player-set 'life life)
+    (when (<= life 0)
+      (command-chain-insert name " is DEAD.\n")
+      (command-chain--vector-delete-nth command-chain-player-ns
+                                        command-chain-current-player-index)
+      (cl-decf command-chain-current-player-index))))
 
 (defun command-chain-process-input (input)
   (let ((command (s-trim input)))
-    (cond ((eq (length command) 0)
-           (command-chain-player-dead))
-          ((not (eq (command-chain-first-char command) command-chain-char))
-           (command-chain-player-dead))
+    (cond ((or (eq (length command) 0)
+               (not (eq (command-chain-first-char command) command-chain-char)))
+           (command-chain-insert "You are a rule breaker.\n")
+           (command-chain-damage-current-player 2))
           ((not (commandp (intern command)))
-           (command-chain-insert command " is not an interactive function.\n")
-           (command-chain-player-dead))
+           (command-chain-insert
+            ?\` command ?\' " is not an interactive function.\n")
+           (command-chain-damage-current-player 1))
           (t
            (setq command-chain-char (command-chain-last-char command))))))
+
+(defun command-chain-deactivate-game ()
+  "Deactivate all commands."
+  (local-unset-key (kbd "RET"))
+  (setq command-chain-point-after-prompt (1+ (point-max))))
+
+(defun command-chain-win ()
+  "If only 1 player is alive, win the player and return non-nil.
+Ohterwise, do nothing and return nil."
+  (when (eq (length command-chain-player-ns) 1)
+    (let ((name (command-chain-current-player-get 'name)))
+      (command-chain-insert name " won the game.")
+      (command-chain-deactivate-game)
+      t)))
 
 (defun command-chain-commit-input ()
   "Commit player's input and prompt next input."
@@ -243,22 +282,25 @@ Example:
                          'face 'command-chain-commited-input-face))
     (command-chain-process-input input)
     (command-chain-pass-turn-to-next-player)
-    (command-chain-prompt)))
+    (or (command-chain-win)
+        (command-chain-prompt))))
 
-;; beginning-of-lineなどを機能させるには、Fieldを使う
+;; FIXME: Use text's 'field' to facilitate move commands like `beginning-of-line'.
 (defun command-chain-start-game ()
   "Create game buffer and start game."
-  (interactive)
   (switch-to-buffer (generate-new-buffer "*Command Chain*"))
   (command-chain--make-local-variables
     command-chain-players
-    command-chain-current-player-n
+    command-chain-player-ns
+    command-chain-current-player-index
     command-chain-point-after-prompt
     command-chain-editing)
   (local-set-key (kbd "RET") 'command-chain-commit-input)
   (command-chain-add-change-hooks)
 
-  (setq command-chain-current-player-n 0
+  (setq command-chain-player-ns
+        (command-chain--number-vector 0 (1- (command-chain-player-count)))
+        command-chain-current-player-index 0
         command-chain-point-after-prompt 0
         command-chain-char (+ ?a (random (- ?z ?a))))
   (command-chain-edit
