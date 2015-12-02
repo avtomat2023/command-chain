@@ -111,13 +111,13 @@ VARS must not be quoted."
 
 (defun command-chain-config-create-player-widgets (player-n)
   "Create widgets to configure PLAYER-N th player's information."
+  (widget-insert (concat "Player " (number-to-string (1+ player-n)) ":   "))
   (widget-create 'push-button
                  :notify (lexical-let ((n player-n))
                            (lambda (&rest ignore)
                              (command-chain-config-delete-player n)))
-                 "Delete Player")
+                 "Delete")
   (widget-insert "\n")
-  (widget-insert (concat "Player " (number-to-string (1+ player-n)) ":\n"))
   (widget-create 'editable-field
                  :size 12
                  :format (concat "    Name %v\n")
@@ -142,7 +142,8 @@ VARS must not be quoted."
                            (command-chain-start-game))
                  "Start Game")
   (use-local-map widget-keymap)
-  (widget-setup))
+  (widget-setup)
+  (move-beginning-of-line nil))
 
 ;; Game Variables
 
