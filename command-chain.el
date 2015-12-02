@@ -326,8 +326,10 @@ Ohterwise, do nothing and return nil."
           (if (string= player-count "") 2 (string-to-number player-count))))
   (when (< player-count 2)
     (error "Number of players must be 2 or more."))
-  (unless (get-buffer command-chain-config-buffer-name)
-    (command-chain-initialize-players player-count))
+  (let ((buffer (get-buffer command-chain-config-buffer-name)))
+    (when buffer
+      (kill-buffer buffer)))
+  (command-chain-initialize-players player-count)
   (command-chain-config))
 
 (provide 'command-chain)
