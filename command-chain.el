@@ -18,7 +18,7 @@
   "Commited input's face."
   :group 'command-chain)
 
-;; Contants and Variables for Config
+;; Constants and Variables for Config
 
 (defconst command-chain-config-buffer-name "*Command Chain Config*")
 (defvar command-chain-players nil
@@ -29,25 +29,11 @@ Keys (must be symbols) and values are following:
   life : life point (integer)
 
 This variable shold be accessed not directly but via functions
-`command-chain-initialize-players', `command-chain-player-set',
-`command-chain-player-get' and `command-chain-delete-player'
-for future implementation changes.")
+`command-chain-initialize-players', `command-chain-player-count',
+`command-chain-player-set', `command-chain-player-get' and
+`command-chain-delete-player' for future implementation changes.")
 
 ;; Utilities
-
-(defun command-chain-player-count ()
-  "Number of players."
-  (length command-chain-players))
-
-(defun command-chain-player-set (player-n key value)
-  "Set KEY of N th player in `command-chain-players' to VALUE."
-  (let ((player (aref command-chain-players player-n)))
-    (puthash key value player)))
-
-(defun command-chain-player-get (player-n key)
-  "Get a value associated with KEY for N th player in `command-chain-players'."
-  (let ((player (aref command-chain-players player-n)))
-    (gethash key player)))
 
 (defun command-chain--put-property (prop value s)
   "Put text propery to whole the S."
@@ -72,15 +58,8 @@ VARS must not be quoted."
              (aset new-vec (1- i) (aref vector i)))
     new-vec))
 
-(defmacro command-chain--vector-delete-nth (vector n)
-  "Delete N th element of VECTOR destructively."
-  `(setq ,vector (command-chain--vector-remove-nth ,vector ,n)))
-
-(defun command-chain-delete-player (player-n)
-  "Delete PLAYER-N th player."
-  (command-chain--vector-delete-nth command-chain-players player-n))
-
 (defun command-chain--number-vector (from &optional to inc)
+  "Make (`number-sequence' FROM TO INC) into a vector."
   (vconcat (number-sequence from to inc)))
 
 (defun command-chain--s-trim (s)
@@ -90,6 +69,30 @@ VARS must not be quoted."
   (when (string-match "[ \t\n\r]+\\'" s)
     (setq s (replace-match "" t t s)))
   s)
+
+(defmacro command-chain--vector-delete-nth (vector n)
+  "Delete N th element of VECTOR destructively."
+  `(setq ,vector (command-chain--vector-remove-nth ,vector ,n)))
+
+(defun command-chain-player-count ()
+  "Number of players."
+  (length command-chain-players))
+
+(defun command-chain-player-set (player-n key value)
+  "Set the value associated with KEY for PLAYER-N th player in
+`command-chain-players' to VALUE."
+  (let ((player (aref command-chain-players player-n)))
+    (puthash key value player)))
+
+(defun command-chain-player-get (player-n key)
+  "Get a value associated with KEY for PLAYER-N th player in
+`command-chain-players'."
+  (let ((player (aref command-chain-players player-n)))
+    (gethash key player)))
+
+(defun command-chain-delete-player (player-n)
+  "Delete PLAYER-N th player in `command-chain-players'."
+  (command-chain--vector-delete-nth command-chain-players player-n))
 
 ;; Definitions for config buffer
 
@@ -103,6 +106,8 @@ VARS must not be quoted."
       (puthash 'life 2 player))))
 
 (defun command-chain-config-delete-player (player-n)
+  "Delete PLAYER-N th player in `command-chain-players' and switch to recreated
+config buffer. If there are only 2 players, signal an error."
   (when (<= (command-chain-player-count) 2)
     (error "2 or more players needed."))
   (command-chain--vector-delete-nth command-chain-players player-n)
@@ -130,7 +135,7 @@ VARS must not be quoted."
 
 ;;; c.f. Info widget
 (defun command-chain-config ()
-  "Create config buffer."
+  "Switch to config buffer and create all widgets."
   (switch-to-buffer command-chain-config-buffer-name)
   (kill-all-local-variables)
   (widget-insert "*** Game Config ***\n\n")
