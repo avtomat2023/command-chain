@@ -1,4 +1,26 @@
-;;; Word Chain game by emacs command names.
+;;; command-chain.el --- Word Chain Game by Emacs Command Names
+
+;; Copyright (C) 2015 Yusuke Yoshimoto
+;; Version: 20151202
+
+;; This program is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+;;; Commentary:
+
+;; See README on https://github.com/yoshrc/command-chain
+
+;;; Code:
 
 (require 'widget)
 
@@ -18,7 +40,7 @@
   "Commited input's face."
   :group 'command-chain)
 
-;; Contants and Variables for Config
+;; Constants and Variables for Config
 
 (defconst command-chain-config-buffer-name "*Command Chain Config*")
 (defvar command-chain-players nil
@@ -29,25 +51,11 @@ Keys (must be symbols) and values are following:
   life : life point (integer)
 
 This variable shold be accessed not directly but via functions
-`command-chain-initialize-players', `command-chain-player-set',
-`command-chain-player-get' and `command-chain-delete-player'
-for future implementation changes.")
+`command-chain-initialize-players', `command-chain-player-count',
+`command-chain-player-set', `command-chain-player-get' and
+`command-chain-delete-player' for future implementation changes.")
 
 ;; Utilities
-
-(defun command-chain-player-count ()
-  "Number of players."
-  (length command-chain-players))
-
-(defun command-chain-player-set (player-n key value)
-  "Set KEY of N th player in `command-chain-players' to VALUE."
-  (let ((player (aref command-chain-players player-n)))
-    (puthash key value player)))
-
-(defun command-chain-player-get (player-n key)
-  "Get a value associated with KEY for N th player in `command-chain-players'."
-  (let ((player (aref command-chain-players player-n)))
-    (gethash key player)))
 
 (defun command-chain--put-property (prop value s)
   "Put text propery to whole the S."
@@ -72,15 +80,8 @@ VARS must not be quoted."
              (aset new-vec (1- i) (aref vector i)))
     new-vec))
 
-(defmacro command-chain--vector-delete-nth (vector n)
-  "Delete N th element of VECTOR destructively."
-  `(setq ,vector (command-chain--vector-remove-nth ,vector ,n)))
-
-(defun command-chain-delete-player (player-n)
-  "Delete PLAYER-N th player."
-  (command-chain--vector-delete-nth command-chain-players player-n))
-
 (defun command-chain--number-vector (from &optional to inc)
+  "Make (`number-sequence' FROM TO INC) into a vector."
   (vconcat (number-sequence from to inc)))
 
 (defun command-chain--s-trim (s)
@@ -90,6 +91,30 @@ VARS must not be quoted."
   (when (string-match "[ \t\n\r]+\\'" s)
     (setq s (replace-match "" t t s)))
   s)
+
+(defmacro command-chain--vector-delete-nth (vector n)
+  "Delete N th element of VECTOR destructively."
+  `(setq ,vector (command-chain--vector-remove-nth ,vector ,n)))
+
+(defun command-chain-player-count ()
+  "Number of players."
+  (length command-chain-players))
+
+(defun command-chain-player-set (player-n key value)
+  "Set the value associated with KEY for PLAYER-N th player in
+`command-chain-players' to VALUE."
+  (let ((player (aref command-chain-players player-n)))
+    (puthash key value player)))
+
+(defun command-chain-player-get (player-n key)
+  "Get a value associated with KEY for PLAYER-N th player in
+`command-chain-players'."
+  (let ((player (aref command-chain-players player-n)))
+    (gethash key player)))
+
+(defun command-chain-delete-player (player-n)
+  "Delete PLAYER-N th player in `command-chain-players'."
+  (command-chain--vector-delete-nth command-chain-players player-n))
 
 ;; Definitions for config buffer
 
@@ -103,6 +128,8 @@ VARS must not be quoted."
       (puthash 'life 2 player))))
 
 (defun command-chain-config-delete-player (player-n)
+  "Delete PLAYER-N th player in `command-chain-players' and switch to recreated
+config buffer. If there are only 2 players, signal an error."
   (when (<= (command-chain-player-count) 2)
     (error "2 or more players needed."))
   (command-chain--vector-delete-nth command-chain-players player-n)
@@ -111,13 +138,13 @@ VARS must not be quoted."
 
 (defun command-chain-config-create-player-widgets (player-n)
   "Create widgets to configure PLAYER-N th player's information."
+  (widget-insert (concat "Player " (number-to-string (1+ player-n)) ":   "))
   (widget-create 'push-button
                  :notify (lexical-let ((n player-n))
                            (lambda (&rest ignore)
                              (command-chain-config-delete-player n)))
-                 "Delete Player")
+                 "Delete")
   (widget-insert "\n")
-  (widget-insert (concat "Player " (number-to-string (1+ player-n)) ":\n"))
   (widget-create 'editable-field
                  :size 12
                  :format (concat "    Name %v\n")
@@ -130,7 +157,7 @@ VARS must not be quoted."
 
 ;;; c.f. Info widget
 (defun command-chain-config ()
-  "Create config buffer."
+  "Switch to config buffer and create all widgets."
   (switch-to-buffer command-chain-config-buffer-name)
   (kill-all-local-variables)
   (widget-insert "*** Game Config ***\n\n")
@@ -142,7 +169,8 @@ VARS must not be quoted."
                            (command-chain-start-game))
                  "Start Game")
   (use-local-map widget-keymap)
-  (widget-setup))
+  (widget-setup)
+  (move-beginning-of-line nil))
 
 ;; Game Variables
 
@@ -326,8 +354,10 @@ Ohterwise, do nothing and return nil."
           (if (string= player-count "") 2 (string-to-number player-count))))
   (when (< player-count 2)
     (error "Number of players must be 2 or more."))
-  (unless (get-buffer command-chain-config-buffer-name)
-    (command-chain-initialize-players player-count))
+  (let ((buffer (get-buffer command-chain-config-buffer-name)))
+    (when buffer
+      (kill-buffer buffer)))
+  (command-chain-initialize-players player-count)
   (command-chain-config))
 
 (provide 'command-chain)
